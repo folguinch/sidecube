@@ -113,6 +113,7 @@ baselayers=""
 ovelays=""
 redo=1
 verbose=0
+zoom=6
 while [ "$1" != "" ]; do
     case $1 in
         -h | --help )           usage
