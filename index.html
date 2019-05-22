@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css"
+  integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+  crossorigin=""/>
+ </head>
+ <body>
+  <div id="mapid" style="width: 800px; height: 800px; position: relative;"></div>
+  <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"></script>
+  <script>
+   var bounds = [[0,0], [256, 256]];
+   var continuum = L.tileLayer('tiles/baselayer_{z}_{x}_{y}.png', {
+                    maxZoom: 6,
+                    id: 'base',
+                    attribution: 'Fernando'
+            });
+   var line1 = L.tileLayer('tiles/overlay_{z}_{x}_{y}.png', {
+                    maxZoom: 6,
+                    minZoom: 4,
+                    id: 'base',
+                    attribution: 'Fernando'
+            });
+   var lines = L.layerGroup([line1]);
+   var mymap = L.map('mapid', {crs:L.CRS.Simple, minZoom: 0, 
+           layers:[continuum, lines]});
+   var baseMaps = {
+        "continuum": continuum,
+   };
+   var overlayMaps = {
+       "line1": line1
+   };
+   L.control.layers(baseMaps, overlayMaps).addTo(mymap);
+   mymap.fitBounds(bounds);
+  </script>
+ </body>
+</html>
