@@ -51,7 +51,7 @@ function get_tiles () {
 
 function base_layer_pipe () {
     # Plots
-    if [[ ! -e baselayer.pdf ]] || [[ $redo == 1 ]]
+    if [[ ! -e "baselayer.pdf" ]] || [[ $redo == 1 ]]
     then
         echo "Ploting base layer"
         base_layer "--blc $blc --trc $trc $baselayers baselayer.pdf"
@@ -71,18 +71,44 @@ function base_layer_pipe () {
             zlevel=$((zlevel * 256))
             get_tiles "300" "$zlevel" "baselayer.pdf" "baselayer" "$z"
         else
-            echo "Tiles for level $z already done"
+            echo "Tiles for base layer level $z already done"
         fi
     done
     wait
+    echo "Base layer finished"
 }
 
 function overlay_pipe () {
-    #overlay "--blc $blc1 $blc2 --trc $trc1 $trc2 -c $ch1 $ch2 $overlays overlay.pdf"
-    echo $zoom
+    # Plots
+    if [[ ! -e "overlay.pdf" ]] || [[ $redo == 1 ]]
+    then
+        echo "Ploting overlay layer"
+        overlay "--blc $blc --trc $trc -c $ch $overlays overlay.pdf"
+        wait
+    else
+        echo "Overlay layer already plotted"
+    fi
+
+    # Create tiles
+    for z in $(seq 4 $zoom)
+    do
+        local maxtile=$(echo "2^$z - 1" | bc)
+        local lasttile="tiles/overlay_${z}_${maxtile}_${maxtile}.png"
+        if [[ $redo == 1 ]] || [[ ! -e $lasttile ]]
+        then
+            local zlevel=$((maxtile + 1))
+            zlevel=$((zlevel * 256))
+            get_tiles "600" "$zlevel" "overlay.pdf" "overlay" "$z" "white"
+        else
+            echo "Tiles for overlay level $z already done"
+        fi
+    done
+    wait
+    echo "Overlay layer finished"
 }
 
 ##### Main #####
+echo "Starting time: $(date)"
 baselayers=""
 ovelays=""
 redo=1
@@ -131,6 +157,8 @@ fi
 
 base_layer_pipe &
 overlay_pipe &
-
 wait
+cp ${DIR}/index.html .
+firefox index.html
+echo "Finish time: $(date)"
 
