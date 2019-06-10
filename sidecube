@@ -6,12 +6,21 @@
 # Created by: Fernando Olguin
 #
 
+set -e
+
 ##### Environment #####
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 ##### Functions #####
 function usage () {
 echo "usage:"
+}
+
+function oninterrupt () {
+    echo "Interrupted"
+    #kill -s 9 $(jobs -pr)
+    kill -- -$$
+    exit
 }
 
 function base_layer () {
@@ -30,7 +39,8 @@ function overlay () {
     local pid="$!"
     if [[ $verbose -eq 1 ]]
     then
-        echo "Overlay plot PID: $!"
+        #local pid="$(echo $localpids | awk '{print $NF}')"
+        echo "Overlay plot PID: $pid"
     fi
 }
 
@@ -46,7 +56,11 @@ function get_tiles () {
     convert $flags \
         "%[fx:floor(page.x/256)]_%[fx:floor(page.y/256)]" \
         +repage "tiles/${4}_${5}_%[filename:tile]$6" &
-    echo "$4 level $5 PID: $!"
+    local pid="$!"
+    if [[ $verbose -eq 1 ]]
+    then
+        echo "$4 level $5 PID: $pid"
+    fi
 }
 
 function base_layer_pipe () {
@@ -128,6 +142,7 @@ function overlay_pipe () {
 
 ##### Main #####
 echo "Starting time: $(date)"
+trap "oninterrupt" INT
 baselayers=""
 ovelays=""
 redo=1
@@ -190,7 +205,8 @@ fi
 base_layer_pipe &
 overlay_pipe &
 wait
-cp ${DIR}/index.html .
+python fill_template.py ${DIR}/index_template.html $(pwd)
 firefox index.html
+trap SIGINT
 echo "Finish time: $(date)"
 
