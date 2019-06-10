@@ -36,16 +36,16 @@ function overlay () {
 
 function get_tiles () {
     local flags="-density $1 -antialias -resize ${2}x${2} $3"
-    flags="$flags -crop 256x256 +adjoin -extent 256x256"
-    if [[ $6 != "" ]]
+    flags="$flags -crop 256x256 +adjoin -extent 256x256 -quality 0"
+    if [[ $7 != "" ]]
     then
-        echo "Setting transparent: $6"
-        flags="$flags -transparent $6"
+        echo "Setting transparent: $7"
+        flags="$flags -transparent $7"
     fi
     flags="$flags -set filename:tile"
     convert $flags \
         "%[fx:floor(page.x/256)]_%[fx:floor(page.y/256)]" \
-        +repage "tiles/${4}_${5}_%[filename:tile].png" &
+        +repage "tiles/${4}_${5}_%[filename:tile]$6" &
     echo "$4 level $5 PID: $!"
 }
 
@@ -64,12 +64,12 @@ function base_layer_pipe () {
     for z in $(seq 0 $zoom)
     do
         local maxtile=$(echo "2^$z - 1" | bc)
-        local lasttile="tiles/baselayer_${z}_${maxtile}_${maxtile}.png"
+        local lasttile="tiles/baselayer_${z}_${maxtile}_${maxtile}.jpg"
         if [[ $redo == 1 ]] || [[ ! -e $lasttile ]]
         then
             local zlevel=$((maxtile + 1))
             zlevel=$((zlevel * 256))
-            get_tiles "300" "$zlevel" "baselayer.pdf" "baselayer" "$z"
+            get_tiles "300" "$zlevel" "baselayer.pdf" "baselayer" "$z" ".jpg"
         else
             echo "Tiles for base layer level $z already done"
         fi
@@ -79,11 +79,25 @@ function base_layer_pipe () {
 }
 
 function overlay_pipe () {
+    # Data selection
+    local pyflags="--blc $blc --trc $trc -c $ch"
+    if [[ $level == "auto" ]]
+    then
+        pyflags="${pyflags} --autolimit"
+    elif [[ $level != "" ]]
+    then
+        pyflags="${pyflags} --level $level"
+    fi
+    if [[ $every != "" ]]
+    then
+        pyflags="${pyflags} --every $every"
+    fi
+
     # Plots
     if [[ ! -e "overlay.pdf" ]] || [[ $redo == 1 ]]
     then
         echo "Ploting overlay layer"
-        overlay "--blc $blc --trc $trc -c $ch $overlays overlay.pdf"
+        overlay "$pyflags $overlays overlay.pdf"
         wait
     else
         echo "Overlay layer already plotted"
@@ -98,12 +112,17 @@ function overlay_pipe () {
         then
             local zlevel=$((maxtile + 1))
             zlevel=$((zlevel * 256))
-            get_tiles "600" "$zlevel" "overlay.pdf" "overlay" "$z" "white"
+            get_tiles "600" "$zlevel" "overlay.pdf" "overlay" "$z" ".jpg"
         else
             echo "Tiles for overlay level $z already done"
         fi
     done
     wait
+    for jpg in tiles/overlay*.jpg
+    do
+        convert $jpg -fuzz 5% -transparent white ${jpg/.jpg/.png} 
+        rm $jpg
+    done
     echo "Overlay layer finished"
 }
 
@@ -113,6 +132,8 @@ baselayers=""
 ovelays=""
 redo=1
 verbose=0
+level=""
+every=""
 while [ "$1" != "" ]; do
     case $1 in
         -h | --help )           usage
@@ -138,6 +159,17 @@ while [ "$1" != "" ]; do
                                 ;;
         -z | --zoom )           shift
                                 zoom=$1
+                                shift
+                                ;;
+        --level )               shift
+                                level=$1
+                                shift
+                                ;;
+        --autolimit )           level="auto"
+                                shift
+                                ;;
+        --every )               shift
+                                every=$1
                                 shift
                                 ;;
         * )                     overlays=$1
