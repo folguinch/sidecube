@@ -27,6 +27,8 @@ def main():
             help='Use std and mean to determine if spectra will be plot')
     parser.add_argument('--nsigma', type=int, default=3,
             help='Use std and mean to determine if spectra will be plot')
+    parser.add_argument('--color', default='k',
+            help='Line color')
     parser.add_argument('cube', type=str,
             help='FITS cube file name')
     parser.add_argument('out', type=str,
@@ -88,7 +90,7 @@ def main():
         wlg = xaxis+x
         
         # Plot
-        ax.plot(wlg, spec/scaling+y, 'k-', lw=0.05)
+        ax.plot(wlg, spec/scaling+y, '%s-' % args.color, lw=0.05)
 
     fig.savefig(args.out, dpi=600)
 
