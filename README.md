@@ -52,7 +52,7 @@ The sub-commands for overlays are:
 - `autolimit`: filter out spectra with values within  the mean +/- 3sigma. With 
 the mean and sigma calculated over all the values in the selected channels.
 - `every`: plot every other pixel from the peak value. It can be combined with 
-the to options above.
+the two options above.
 
 ## Examples
 
