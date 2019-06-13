@@ -10,7 +10,6 @@ options = {'maxzoom':6}
 class joinArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         newval = ','.join(map(lambda x: "'%s'" % x, values))
-        print newval
         setattr(namespace, self.dest, newval)
 
 def  main():
@@ -35,8 +34,6 @@ def  main():
         temp = Template(''.join(tmp.readlines()))
 
     # Replace
-    print args.overlays
-    print args.baselayers
     out = temp.safe_substitute(vars(args))
 
     # Save
