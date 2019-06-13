@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css"
+  integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+  crossorigin=""/>
+ </head>
+ <body>
+  <div id="mapid" style="width: 800px; height: 800px; position: relative;"></div>
+  <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"></script>
+  <script>
+   var mapsize = 256
+   var bounds = [[0,0], [mapsize, mapsize]];
+   var maxzoom = $maxzoom
+   var baselayers = [$baselayers]
+   var overlays = [$overlays]
+   var nlayers = baselayers.length
+   var noverlays = overlays.length
+   var baseMaps = {}
+   var overlayMaps = {}
+
+   for (i=0; i<nlayers; i++){
+        baseMaps[baselayers[i]] = L.tileLayer('tiles/baselayer_'+baselayers[i]+'_{z}_{x}_{y}.jpg', {
+                            maxZoom: maxzoom,
+                            id: 'base',
+                            attribution: 'Fernando'
+                    });
+    }
+
+    for (j=0; j<noverlays; j++){
+        overlayMaps[overlays[j]] = L.tileLayer('tiles/overlay_'+overlays[j]+'_{z}_{x}_{y}.png', {
+                            maxZoom: maxzoom,
+                            minZoom: 4,
+                            id: 'over',
+                            attribution: 'Fernando'
+                    });
+   }
+   var mymap = L.map('mapid', {crs:L.CRS.Simple, minZoom: 0, 
+           layers:[baseMaps[baselayers[0]], overlayMaps[overlays[0]]]});
+   L.control.layers(baseMaps, overlayMaps).addTo(mymap);
+   mymap.fitBounds(bounds);
+   mymap.setView([-mapsize/2, mapsize/2], 0)
+  </script>
+ </body>
+</html>
