@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 from astropy.io import fits
 
-from utils import get_figure, select_data
+from utils import get_figure, select_data, mask_every
 
 def main():
     # Parse arguments
@@ -17,6 +17,18 @@ def main():
             help='Top right corner of the data box')
     parser.add_argument('--xcoverage', default=0.8, type=float,
             help='Coverage of the spectrum range over each pixel')
+    parser.add_argument('--level', default=None, type=float,
+            help='Ignore spectra below level')
+    parser.add_argument('--mask', default=None, type=float,
+            help='Read a mask from FITS file')
+    parser.add_argument('--every', type=int, default=None,
+            help='Select one pixel every n pixels from peak')
+    parser.add_argument('--autolimit', action='store_true',
+            help='Use std and mean to determine if spectra will be plot')
+    parser.add_argument('--nsigma', type=int, default=3,
+            help='Use std and mean to determine if spectra will be plot')
+    parser.add_argument('--color', default='k',
+            help='Line color')
     parser.add_argument('cube', type=str,
             help='FITS cube file name')
     parser.add_argument('out', type=str,
@@ -34,9 +46,28 @@ def main():
     else:
         lenspec = cube.shape[-3]
         s0, s1 = 0, lenspec
+    subcube = cube.data[0, s0:s1, y0:y1, x0:x1]
+
+    # Create mask
+    if args.mask:
+        mask = fits.open(args.mask)[0]
+        mask = np.squeeze(mask.data).astype(bool)
+    elif args.level:
+        mask = np.any(subcube > args.level, axis=0)
+    elif args.autolimit:
+        mean = np.mean(subcube)
+        std = np.std(subcube)
+        mask = np.any(subcube>mean+args.nsigma*std, axis=0) | \
+                np.any(subcube<mean-args.nsigma*std, axis=0)
+    else:
+        mask = np.ones(subcube.shape[1:], dtype=bool)
+    if args.every:
+        maxmap = np.nanmax(subcube, axis=0)
+        ymax, xmax = np.unravel_index(np.nanargmax(maxmap), maxmap.shape)
+        mask = mask & mask_every(subcube.shape[1:], args.every, row=ymax, 
+                col=xmax)
 
     # Data scaling
-    subcube = cube.data[0, s0:s1, y0:y1, x0:x1]
     scaling = 1.01*np.nanmax(subcube)
     xempty = (1. - args.xcoverage)*0.5
     xaxis = np.linspace(xempty,1.-xempty, lenspec)
@@ -49,7 +80,7 @@ def main():
     ax.set_ylim(-0.5, npix-0.5)
 
     # Plot
-    for x,y in product(range(npix), range(npix)):
+    for y, x in np.transpose(np.nonzero(mask)):
         # Spectrum
         spec = subcube[:, y, x]
         if np.any(np.isnan(spec)):
@@ -59,7 +90,7 @@ def main():
         wlg = xaxis+x
         
         # Plot
-        ax.plot(wlg, spec/scaling+y, 'k-', lw=0.05)
+        ax.plot(wlg, spec/scaling+y, '%s-' % args.color, lw=0.05)
 
     fig.savefig(args.out, dpi=600)
 

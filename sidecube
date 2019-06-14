@@ -6,6 +6,8 @@
 # Created by: Fernando Olguin
 #
 
+set -e
+
 ##### Environment #####
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -14,152 +16,308 @@ function usage () {
 echo "usage:"
 }
 
+function logger (){
+    if [[ $VERBOSE -eq 1 ]]
+    then
+        echo "$@"
+    fi
+}
+
+function oninterrupt () {
+    echo "Interrupted"
+    kill -- -$$
+    exit
+}
+
 function base_layer () {
     local script="${DIR}/baselayer.py"
     python $script $* &
     local pid="$!"
-    if [[ $verbose -eq 1 ]]
-    then
-        echo "Base layer plot PID: $pid"
-    fi
+    logger "Base layer plot PID: $pid"
 }
 
 function overlay () {
     local script="${DIR}/overlay.py"
     python $script $* &
     local pid="$!"
-    if [[ $verbose -eq 1 ]]
-    then
-        echo "Overlay plot PID: $!"
-    fi
+    logger "Overlay plot PID: $pid"
 }
 
 function get_tiles () {
     local flags="-density $1 -antialias -resize ${2}x${2} $3"
-    flags="$flags -crop 256x256 +adjoin -extent 256x256"
-    if [[ $6 != "" ]]
+    flags="$flags -crop 256x256 +adjoin -extent 256x256 -quality 0"
+    if [[ $7 != "" ]]
     then
-        echo "Setting transparent: $6"
-        flags="$flags -transparent $6"
+        echo "Setting transparent: $7"
+        flags="$flags -transparent $7"
     fi
     flags="$flags -set filename:tile"
     convert $flags \
         "%[fx:floor(page.x/256)]_%[fx:floor(page.y/256)]" \
-        +repage "tiles/${4}_${5}_%[filename:tile].png" &
-    echo "$4 level $5 PID: $!"
+        +repage "tiles/${4}_${5}_%[filename:tile]$6" &
+    local pid="$!"
+    logger "$4 level $5 PID: $pid"
 }
 
-function base_layer_pipe () {
+function base_layer_pipe_single () {
+    local name="$1"
+    local filename="$name.pdf"
+    shift
     # Plots
-    if [[ ! -e "baselayer.pdf" ]] || [[ $redo == 1 ]]
+    if [[ ! -e $filename ]] || [[ $REDO == 1 ]]
     then
-        echo "Ploting base layer"
-        base_layer "--blc $blc --trc $trc $baselayers baselayer.pdf"
+        logger "Ploting base layer: $name"
+        base_layer $BLC $TRC $@ $filename
+        logger "Base layer plotted in $filename"
         wait
     else
-        echo "Base layer already plotted"
+        logger "Base layer already plotted in $filename"
     fi
 
     # Create tiles
-    for z in $(seq 0 $zoom)
+    for z in $(seq 0 $ZOOM)
     do
         local maxtile=$(echo "2^$z - 1" | bc)
-        local lasttile="tiles/baselayer_${z}_${maxtile}_${maxtile}.png"
-        if [[ $redo == 1 ]] || [[ ! -e $lasttile ]]
+        local lasttile="tiles/baselayer_${name}_${z}_${maxtile}_${maxtile}.jpg"
+        if [[ $REDO == 1 ]] || [[ ! -e $lasttile ]]
         then
             local zlevel=$((maxtile + 1))
             zlevel=$((zlevel * 256))
-            get_tiles "300" "$zlevel" "baselayer.pdf" "baselayer" "$z"
+            get_tiles "300" "$zlevel" "$filename" "baselayer_${name}" "$z" ".jpg"
         else
-            echo "Tiles for base layer level $z already done"
+            logger "Tiles for base layer level $z already done"
         fi
     done
     wait
-    echo "Base layer finished"
+    logger "Base layer finished"
 }
 
-function overlay_pipe () {
+function base_layer_pipe () {
+    for baseopts in "${BASELAYERS[@]}"
+    do
+        logger "Processing base layer options: $baseopts"
+        base_layer_pipe_single $baseopts
+    done
+}
+
+function overlay_pipe_single () {
+    # Data selection
+    local name=$1
+    local filename="${name}.pdf"
+    shift
+    local pyflags="$BLC $TRC $@"
+
     # Plots
-    if [[ ! -e "overlay.pdf" ]] || [[ $redo == 1 ]]
+    if [[ ! -e $filename ]] || [[ $REDO == 1 ]]
     then
-        echo "Ploting overlay layer"
-        overlay "--blc $blc --trc $trc -c $ch $overlays overlay.pdf"
+        logger "Ploting overlay layer: $name"
+        overlay "$pyflags $filename"
+        logger "Overlay plotted in $filename"
         wait
     else
-        echo "Overlay layer already plotted"
+        logger "Overlay layer already plotted in $filename"
     fi
 
     # Create tiles
-    for z in $(seq 4 $zoom)
+    for z in $(seq 4 $ZOOM)
     do
         local maxtile=$(echo "2^$z - 1" | bc)
-        local lasttile="tiles/overlay_${z}_${maxtile}_${maxtile}.png"
-        if [[ $redo == 1 ]] || [[ ! -e $lasttile ]]
+        local lasttile="tiles/overlay_${name}_${z}_${maxtile}_${maxtile}.png"
+        local lastjpg="${lasttile/.png/.jpg}"
+        if [[ $REDO == 1 ]] || ([[ ! -e $lasttile ]] && [[ ! -e $lastjpg ]])
         then
             local zlevel=$((maxtile + 1))
             zlevel=$((zlevel * 256))
-            get_tiles "600" "$zlevel" "overlay.pdf" "overlay" "$z" "white"
+            get_tiles "600" "$zlevel" "$filename" "overlay_$name" "$z" ".jpg"
         else
             echo "Tiles for overlay level $z already done"
         fi
     done
     wait
+    if [[ $REDO == 1 ]] || [[ ! -e $lasttile ]]
+    then
+        for jpg in tiles/overlay_${name}*.jpg
+        do
+            convert $jpg -fuzz 5% -transparent white ${jpg/.jpg/.png} 
+            rm $jpg
+        done
+    fi
     echo "Overlay layer finished"
+}
+
+function overlay_pipe () {
+    for overopts in "${OVERLAYS[@]}"
+    do
+        logger "Processing overlay options: $overopts"
+        overlay_pipe_single $overopts
+    done
+}
+
+function read_overlay () {
+    logger "Processing overlay properties"
+    logger "Overlay file: $1"
+    NOVER=$((NOVER + 1))
+    local overlayfile="$1"
+    local flags=""
+    local name="overlay$NOVER"
+    shift
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            -c | --chanrange )
+                shift
+                flags="$flags -c $1 $2"
+                shift 2
+                SKIP=$((SKIP+3))
+                ;;
+            --level | --limit )
+                shift
+                flags="$flags --level $1"
+                shift
+                SKIP=$((SKIP+2))
+                ;;
+            --autolimit )
+                flags="$flags --autolimit"
+                shift
+                SKIP=$((SKIP+1))
+                ;;
+            --every )               
+                shift
+                flags="$flags --every $1"
+                shift
+                SKIP=$((SKIP+2))
+                ;;
+            --color )
+                shift
+                flags="$flags --color $1"
+                shift
+                SKIP=$((SKIP+2))
+                ;;
+            --name )
+                shift
+                name="$1"
+                shift
+                SKIP=$((SKIP+2))
+                ;;
+            * )
+                break
+                ;;
+        esac
+    done
+
+    OVERLAYS+=( "$name $flags $overlayfile" )
+    OVERNAMES="$OVERNAMES $name"
+}
+
+function read_baselayer () {
+    logger "Processing baselayer properties"
+    logger "Base layer file: $1"
+    NBASE=$((NBASE + 1))
+    local basefile="$1"
+    local name="baselayer$NOVER"
+    shift
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            --name )
+                shift
+                name="$1"
+                shift
+                SKIP=$((SKIP+2))
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    BASELAYERS+=( "$name $basefile" )
+    BASENAMES="$BASENAMES $name"
 }
 
 ##### Main #####
 echo "Starting time: $(date)"
-baselayers=""
-ovelays=""
-redo=1
-verbose=0
-zoom=6
+trap "oninterrupt" INT
+BASELAYERS=()
+BASENAMES=""
+OVERLAYS=()
+OVERNAMES=""
+REDO=1
+VERBOSE=0
+ZOOM=6
+SKIP=1
+NOVER=0
+NBASE=0
 while [ "$1" != "" ]; do
     case $1 in
-        -h | --help )           usage
-                                exit
-                                ;;
-        -v | --verbose )        verbose=1
-                                shift
-                                ;;
-        -n | --noredo )         redo=0
-                                shift
-                                ;;
-        -c | --chanrange )      shift
-                                ch="$1 $2"
-                                shift 2
-                                ;;
-        --trc )                 shift
-                                trc="$1 $2"
-                                shift 2
-                                ;;
-        --blc )                 shift
-                                blc="$1 $2"
-                                shift 2
-                                ;;
-        -z | --zoom )           shift
-                                zoom=$1
-                                shift
-                                ;;
-        * )                     overlays=$1
-                                shift
-                                baselayers=$1
-                                shift
-                                break
-                                ;;
+        -h | --help )           
+            usage
+            exit
+            ;;
+        -v | --verbose )        
+            VERBOSE=1
+            shift
+            ;;
+        -n | --noredo )         
+            REDO=0
+            shift
+            ;;
+        -z | --zoom )           
+            shift
+            ZOOM=$1
+            shift
+            ;;
+        --trc )                 
+            shift
+            TRC="--trc $1 $2"
+            shift 2
+            ;;
+        --blc )                 
+            shift
+            BLC="--blc $1 $2"
+            shift 2
+            ;;
+        --overlay )
+            shift
+            read_overlay $@
+            shift $SKIP
+            SKIP=1
+            ;;
+        --baselayer )
+            shift
+            read_baselayer $@
+            shift $SKIP
+            SKIP=1
+            ;;
+        * ) 
+            shift
+            ;;
     esac
 done
 
 if [[ ! -d "tiles" ]]
 then
-    echo "Creating directory tiles"
+    logger "Creating directory tiles"
     mkdir "tiles"
+elif [[ $REDO -eq 1 ]]
+then
+    logger "Emptying tiles directory"
+    rm -rf tiles/*
 fi
 
 base_layer_pipe &
 overlay_pipe &
 wait
-cp ${DIR}/index.html .
+if [[ -n $BASENAMES ]]
+then
+    BASENAMES="--baselayers $BASENAMES"
+fi
+if [[ -n $OVERNAMES ]]
+then
+    OVERNAMES="--overlays $OVERNAMES"
+fi
+python ${DIR}/fill_template.py $BASENAMES $OVERNAMES --maxzoom $ZOOM $(pwd)
 firefox index.html
+trap SIGINT
 echo "Finish time: $(date)"
 

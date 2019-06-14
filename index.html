@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"></script>
   <script>
    var bounds = [[0,0], [256, 256]];
-   var continuum = L.tileLayer('tiles/baselayer_{z}_{x}_{y}.png', {
+   var continuum = L.tileLayer('tiles/baselayer_{z}_{x}_{y}.jpg', {
                     maxZoom: 6,
                     id: 'base',
                     attribution: 'Fernando'
@@ -32,6 +32,7 @@
    };
    L.control.layers(baseMaps, overlayMaps).addTo(mymap);
    mymap.fitBounds(bounds);
+   mymap.setView([-256/2, 256/2], 0)
   </script>
  </body>
 </html>

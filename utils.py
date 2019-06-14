@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 def get_figure(npix, dpi=10, styles=['maps'], alpha=False):
     # Styles
@@ -43,3 +44,9 @@ def select_data(imshape, blc=None, trc=None):
 
     return npix, x0, x1, y0, y1
 
+def mask_every(shape, every, row=0, col=0):
+    assert len(shape)==2
+    mask = np.zeros(shape, dtype=bool)
+    mask[row%every::every,col%every::every] = True
+
+    return mask

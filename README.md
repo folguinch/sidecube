@@ -6,7 +6,7 @@ in a cube.
 
 # Requirements
 
-The code requires the following programs/packages:
+`sidecube` requires the following programs/packages:
 
 - imagemagick
 - python 2.7
@@ -20,33 +20,64 @@ the maximum number of processes it can run simultaneously is twice the number
 of zoom levels. However, plotting and tiling a base layer will finish before
 plotting the overlay layer.
 
-A map with 6 zoom levels and a 200x200 image will take more than 15 minutes.
+A map with 6 zoom levels and a 200x200 image will take more than 15-20 minutes.
 
 # Usage
 
 ```bash
-sidecube [-n|--noredo] [--blc blc_x blc_y ] [--trc trc_x trc_y] [-c|--chanrange  c1 c2]
- [-z|--zoom zoomlevel] base_layer.fits overlay_cube.fits
+sidecube [-v|--verbose] [-n|--noredo] 
+[--blc blc_x blc_y ] [--trc trc_x trc_y] [-z|--zoom zoomlevel] 
+[[--baselayer base_layer.fits] [--name baselayer1]] ... 
+[[--overlay overlay_cube.fits] [-c|--chanrange c1 c2] [--name line1] [--color black] [[--level|--limit level] [--autolimit]] [--every number]] ...
 ```
 
-The default zoom level is 6. If for some reason the program was stopped, use
-the flag `-n` or `--noredo` to resume.
+The default zoom level is `zoomlevel=6`. If for some reason the program was 
+stopped, use the flag `-n` or `--noredo` to resume.
+
+At the moment the program only accepts data with the same size.
+
+The commands `--baselayer` and `--overlay` can be repeated to plot multiple 
+layers. The sub-commands configure the preceding base layer or overlay plot 
+and are optional. 
+
+The sub-commands for base layers are:
+- `name`: assign a name to the layer. This is used in the file names and in the
+layer selection of the map web page. If not given a generic name is generated.
+
+The sub-commands for overlays are:
+- `name`: same as for base layers.
+- `c` or `chanrange`: the channel range. Channels are zero-based.
+- `color`: line color (any value accepted by matplotlib).
+- `level` or `limit`: a minimum flux limit for the spectrum values.
+- `autolimit`: filter out spectra with values within  the mean +/- 3sigma. With 
+the mean and sigma calculated over all the values in the selected channels.
+- `every`: plot every other pixel from the peak value. It can be combined with 
+the two options above.
+
+## Examples
 
 To generate a map with all the spectra in a box with bottom left corner
 (100,100) and top right corner (300,300) and channels between 0 and 50:
 ```bash
-sidecube --blc 100 100 --trc 300 300 -c 0 50 base_layer.fits overlay_cube.fits
+sidecube --blc 100 100 --trc 300 300 --baselayer base_layer.fits --overlay overlay_cube.fits -c 0 50
 ```
 Note the pixels and channels are zero-based.
 
-We recommend to run the code with no more than 200 pixels per side.
+Generate the same map but with 2 overlays with channels between 0-50 and 
+150-200, one black and the other blue:
+```bash
+sidecube --blc 100 100 --trc 300 300 --baselayer base_layer.fits 
+--overlay overlay_cube.fits -c 0 50 --color k 
+--overlay overlay_cube.fits -c 150 200 --color b
+```
+
+We recommend to run the code with no more than 200 pixels per side, and use the limiting parameters.
 
 # Implemented features
 
 The following features have been implemented:
 
-- Plot a single base and overlay layers.
-- The `index.html` file only supports 6 zoom levels at the moment.
+- Plot multiple base and overlay layers.
 - The overlay layer is tiled from zoom level 4 upwards (transparency does not
   work well with lower levels).
 - All the ticked features in Road map.
@@ -55,8 +86,8 @@ The following features have been implemented:
 
 For version v1.0:
 
-- [ ] Plot multiple base layers
-- [ ] Plot multiple overlays
+- [x] Plot multiple base layers
+- [x] Plot multiple overlays
 - [ ] Coordinate grid overlay
 - [ ] Use frequency instead of channels
 - [ ] Base layer customization: vmin, vmax, color map, scale
@@ -65,5 +96,5 @@ Long term features
 
 - [ ] Improve transparency
 - [ ] Convert map units to sky units
-- [ ] Verbose mode
+- [x] Verbose mode
 
