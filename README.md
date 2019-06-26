@@ -1,8 +1,10 @@
 # sidecube
 
-A package to overplot spectra on maps and visualize it. The program loads a
-base layer (e.g. continuum image) and creates an overlay layer with the spectra
-in a cube.
+A package to overplot spectra on maps and visualize it. The program loads one or more
+base layers (e.g. continuum image) and creates overlay layers with the spectra
+in a cube. The data is displayed using the [Leaflet](https://leafletjs.com/) 
+library in any JavaScript enabled browser (at the moment it uses Firefox as 
+default).
 
 # Requirements
 
